@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CityPulse — explore your city, safely</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root{--ink:#14202b;--paper:#eef1ee;--panel:#fbfcfa;--line:#cfd6d0;--muted:#56645c;--signal:#0a7d6e;--signal-dark:#075b52;--mint:#dff1eb;--amber:#e8a317;--alert:#cc3b2a;--r:10px}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.5 "Public Sans",system-ui,sans-serif;color:var(--ink);background:var(--paper);height:100vh;display:grid;grid-template-rows:auto 1fr}
+h1,h2,h3{font-family:"Bricolage Grotesque",sans-serif;margin:0}
+header{display:flex;align-items:center;gap:14px;padding:12px 18px;background:linear-gradient(115deg,#14202b,#193b45);color:#fff;flex-wrap:wrap;box-shadow:0 2px 12px #14202b33;z-index:2}
+header h1{font-size:22px;letter-spacing:.2px}
+.brand{display:flex;align-items:center;gap:10px}
+.brand-mark{display:grid;place-items:center;width:34px;height:34px;border-radius:10px;background:linear-gradient(145deg,#13a890,var(--signal));font-size:11px;letter-spacing:.04em;font-weight:700;box-shadow:0 4px 12px #0a7d6e55}
+.brand-copy{display:flex;flex-direction:column;line-height:1.1}
+.brand-copy small{margin-top:4px;color:#b8d6ce;font:500 11px "Public Sans"}
+#wx{flex:1;font-size:13px;color:#cfe3dc;min-width:200px}
+#wx b{color:#fff}
+.alert-pill{display:inline-block;margin-left:8px;padding:1px 8px;border-radius:99px;background:var(--amber);color:#1c1400;font-weight:600}
+.alert-pill.high{background:var(--alert);color:#fff}
+main{display:grid;grid-template-columns:430px 1fr;min-height:0}
+#side{background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0;box-shadow:4px 0 18px #14202b0d;z-index:1}
+nav{display:flex;border-bottom:1px solid var(--line)}
+nav button{flex:1;padding:12px 4px;border:0;background:none;font:600 13px "Public Sans";color:var(--muted);cursor:pointer;border-bottom:3px solid transparent;transition:color .15s,background .15s}
+nav button:hover{background:#eef5f1;color:var(--ink)}
+nav button[aria-selected=true]{color:var(--ink);border-color:var(--signal)}
+section{display:none;padding:22px 20px;overflow:auto;flex:1}
+section.on{display:block}
+#map{height:100%;min-height:300px;background:#d9e5df}
+.map-overlay{position:absolute;right:18px;bottom:18px;z-index:500;background:#ffffffed;border:1px solid #fff;border-radius:12px;padding:10px 12px;box-shadow:0 5px 20px #14202b26;font-size:12px}
+.map-overlay strong{display:block;margin-bottom:6px;font-size:11px;text-transform:uppercase;letter-spacing:.06em}
+.legend{display:flex;align-items:center;gap:7px;margin-top:4px;color:var(--muted)}
+.dot{width:9px;height:9px;border-radius:50%;display:inline-block}
+button,input,select,textarea{font:inherit}
+.btn{background:var(--signal);color:#fff;border:0;border-radius:var(--r);padding:9px 14px;font-weight:600;cursor:pointer;transition:background .15s,transform .15s}
+.btn:hover{background:var(--signal-dark);transform:translateY(-1px)}
+.btn.ghost{background:none;color:var(--signal);border:1px solid var(--signal)}
+.btn:disabled{opacity:.5;cursor:wait}
+:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
+input,select,textarea{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:var(--r);background:#fff;margin:4px 0 10px}
+input:focus,select:focus,textarea:focus{border-color:var(--signal);box-shadow:0 0 0 3px #0a7d6e1c;outline:0}
+label{font-size:13px;font-weight:600}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0 14px}
+.chip{padding:7px 13px;border:1px solid var(--line);border-radius:99px;background:#fff;cursor:pointer;font-size:13px;transition:.15s}
+.chip:hover{border-color:var(--signal);color:var(--signal)}
+.chip[aria-pressed=true]{background:var(--ink);color:#fff;border-color:var(--ink)}
+.item{padding:14px 0;border-bottom:1px solid var(--line)}
+.item h3{font-size:15px}
+.place-card{display:grid;grid-template-columns:92px 1fr;gap:12px;padding:10px 0}
+.place-photo{width:92px;height:82px;object-fit:cover;border-radius:10px;background:linear-gradient(135deg,#d8ebe4,#9fc9bd)}
+.place-card h3{margin:2px 0 4px}
+.place-card .btn{margin-top:8px;padding:5px 10px;font-size:12px}
+.place-copy{min-width:0}
+.place-copy .meta{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.section-lead{margin:5px 0 16px;color:var(--muted);font-size:13px}
+.section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.section-icon{display:grid;place-items:center;width:38px;height:38px;border-radius:12px;background:var(--mint);color:var(--signal);font-size:18px}
+.eyebrow{color:var(--signal);font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+.meta{color:var(--muted);font-size:13px}
+.note{background:#fff;border-left:4px solid var(--signal);padding:12px 14px;margin:14px 0;border-radius:0 var(--r) var(--r) 0;white-space:pre-wrap;box-shadow:0 3px 14px #14202b0b}
+.note.warn{border-color:var(--amber)}
+.bar{display:grid;grid-template-columns:86px 1fr 28px;gap:6px;align-items:center;font-size:12px}
+.bar i{display:block;height:6px;border-radius:3px;background:var(--line);position:relative}
+.bar i::after{content:"";position:absolute;inset:0;width:var(--w);background:var(--c,var(--signal));border-radius:3px}
+.sev{display:inline-block;min-width:22px;text-align:center;border-radius:4px;color:#fff;font-weight:700;font-size:12px;padding:0 5px}
+#chatlog{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
+.msg{padding:8px 11px;border-radius:10px;max-width:92%;white-space:pre-wrap}
+.msg.u{align-self:flex-end;background:var(--ink);color:#fff}
+.msg.m{align-self:flex-start;background:#fff;border:1px solid var(--line);box-shadow:0 2px 8px #14202b0b}
+dialog{border:0;border-radius:14px;padding:22px;width:min(380px,92vw);box-shadow:0 18px 60px #14202b33}
+dialog::backdrop{background:#14202b99}
+.err{color:var(--alert);font-weight:600;min-height:1.4em}
+.status-card{display:flex;gap:10px;align-items:center;padding:12px;background:#f3f8f5;border:1px solid #d8e9e0;border-radius:var(--r);color:var(--muted);font-size:13px}
+.status-card b{display:block;color:var(--ink)}
+@media(max-width:800px){header{padding:10px 12px;gap:9px}.brand-copy small{display:none}#wx{order:3;flex-basis:100%;min-width:0}main{grid-template-columns:1fr;grid-template-rows:42vh 1fr}#map{order:-1}.map-overlay{right:10px;bottom:10px}#side{border-right:0;box-shadow:none}section{padding:18px 15px}nav button{font-size:12px}}
+@media(prefers-reduced-motion:no-preference){.note{animation:in .25s ease-out}@keyframes in{from{opacity:0;transform:translateY(4px)}}}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><span class="brand-mark">CP</span><div class="brand-copy"><h1>CityPulse</h1><small>Explore smarter. Move safer.</small></div></div>
+  <div id="wx" aria-live="polite">Finding your location…</div>
+  <button class="btn ghost" id="locate" style="color:#fff;border-color:#fff">Use my location</button>
+  <button class="btn" id="authbtn">Log in</button>
+</header>
+<main>
+  <div id="side">
+    <nav role="tablist">
+      <button role="tab" data-tab="explore" aria-selected="true">Explore</button>
+      <button role="tab" data-tab="safety" aria-selected="false">Safety</button>
+      <button role="tab" data-tab="compare" aria-selected="false">Compare</button>
+      <button role="tab" data-tab="route" aria-selected="false">Route</button>
+      <button role="tab" data-tab="ask" aria-selected="false">Ask</button>
+    </nav>
+
+    <section id="explore" class="on">
+      <div class="section-head"><div><div class="eyebrow">Your city, decoded</div><h2>Find your next local favourite</h2></div><div class="section-icon">⌖</div></div>
+      <p class="section-lead">Discover trusted places, stories and useful details around you.</p>
+      <div class="chips" id="types">
+        <button class="chip" data-type="food" aria-pressed="true">Food</button>
+        <button class="chip" data-type="hotel" aria-pressed="false">Stays</button>
+        <button class="chip" data-type="attraction" aria-pressed="false">Sights</button>
+        <button class="chip" data-type="heritage" aria-pressed="false">Heritage</button>
+      </div>
+      <div id="places" class="meta">Allow location or pick a spot on the map, then choose a category.</div>
+      <div id="story"></div>
+    </section>
+
+    <section id="safety">
+      <div class="section-head"><div><div class="eyebrow">Community intelligence</div><h2>Report a problem</h2></div><div class="section-icon">!</div></div>
+      <p class="section-lead">Help neighbours navigate the city with a text, photo or voice note in any language.</p>
+      <label for="rtext">What's happening?</label>
+      <textarea id="rtext" rows="3" placeholder="Open manhole near the bus stop, no lights after 8pm"></textarea>
+      <label for="rphoto">Photo (optional)</label>
+      <input type="file" id="rphoto" accept="image/*" capture="environment">
+      <button class="btn ghost" id="rec" type="button">Record voice note</button>
+      <button class="btn" id="rsend" type="button" style="float:right">Send report</button>
+      <div class="err" id="rerr" role="alert"></div>
+      <div id="rresult"></div>
+      <h2 style="margin-top:20px">Nearby reports</h2>
+      <div id="reports" class="meta">No reports loaded yet.</div>
+    </section>
+
+    <section id="compare">
+      <div class="section-head"><div><div class="eyebrow">Make a confident choice</div><h2>Best vs. worst, explained</h2></div><div class="section-icon">↕</div></div>
+      <p class="section-lead">Compare nearby places using reviews, accessibility and live incident signals.</p>
+      <label for="ctype">Compare nearby</label>
+      <select id="ctype"><option value="food">Food</option><option value="hotel">Stays</option><option value="attraction">Sights</option><option value="heritage">Heritage</option></select>
+      <button class="btn" id="cgo">Rank places</button>
+      <div id="cout"></div>
+    </section>
+
+    <section id="route">
+      <div class="section-head"><div><div class="eyebrow">Safer journeys</div><h2>Choose your route</h2></div><div class="section-icon">➜</div></div>
+      <p class="section-lead">Weigh time against recent community-reported risk.</p>
+      <label for="dest">Where to?</label>
+      <input id="dest" placeholder="e.g. Shaniwar Wada">
+      <label for="mode">Travelling by</label>
+      <select id="mode"><option value="foot">Walking</option><option value="bike">Cycling</option><option value="car">Car or bike</option></select>
+      <button class="btn" id="rgo">Find safest route</button>
+      <div class="err" id="routeerr" role="alert"></div>
+      <div id="routeout"></div>
+    </section>
+
+    <section id="ask">
+      <div class="section-head"><div><div class="eyebrow">Your local co-pilot</div><h2>Ask CityPulse</h2></div><div class="section-icon">✦</div></div>
+      <p class="section-lead">Get practical answers grounded in live weather, places and reports.</p>
+      <div id="chatlog"><div class="msg m">Ask me where to eat, what's safe tonight, or how weather changes your plan.</div></div>
+      <input id="q" placeholder="Cheap vegetarian dinner nearby, safe to walk?" aria-label="Your question">
+      <button class="btn" id="qgo">Ask</button>
+    </section>
+  </div>
+  <div id="map" role="application" aria-label="City map">
+    <div class="map-overlay" aria-label="Map legend"><strong>Live map</strong><div class="legend"><span class="dot" style="background:#0a7d6e"></span>Places</div><div class="legend"><span class="dot" style="background:#cc3b2a"></span>Safety reports</div></div>
+  </div>
+</main>
+
+<dialog id="authd">
+  <form method="dialog" id="authform">
+    <h2 id="authtitle">Log in</h2>
+    <div id="namewrap" hidden><label for="aname">Name</label><input id="aname" autocomplete="name"></div>
+    <label for="aemail">Email</label><input id="aemail" type="email" autocomplete="email" required>
+    <label for="apass">Password (8+ characters)</label><input id="apass" type="password" autocomplete="current-password" required>
+    <div class="err" id="aerr" role="alert"></div>
+    <button class="btn" id="asubmit" type="submit">Log in</button>
+    <button class="btn ghost" id="aswitch" type="button">Create account</button>
+    <button class="btn ghost" id="aclose" type="button">Close</button>
+  </form>
+</dialog>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const S = { c: [18.5204, 73.8567], token: localStorage.getItem("cp_token"), user: JSON.parse(localStorage.getItem("cp_user") || "null"), type: "food", audio: null, pick: null };
+
+async function api(path, opt = {}) {
+  const r = await fetch("/api" + path, { ...opt, headers: { "Content-Type": "application/json", ...(S.token ? { Authorization: "Bearer " + S.token } : {}), ...opt.headers } });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) { if (r.status === 401) openAuth(); throw new Error(j.error || "Something went wrong."); }
+  return j;
+}
+const post = (p, b) => api(p, { method: "POST", body: JSON.stringify(b) });
+const busy = (btn, on) => { btn.disabled = on; };
+
+// ---------- Map ----------
+const MAPBOX_TOKEN = "__MAPBOX_TOKEN__";
+const map = L.map("map").setView(S.c, 13);
+if (MAPBOX_TOKEN) {
+  L.tileLayer(`https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/{z}/{x}/{y}?access_token=${encodeURIComponent(MAPBOX_TOKEN)}`, {
+    maxZoom: 19, tileSize: 512, zoomOffset: -1, attribution: "© Mapbox © OpenStreetMap"
+  }).addTo(map);
+} else {
+  $("#map").insertAdjacentHTML("afterbegin", `<div class="map-overlay warn" style="top:18px;bottom:auto;color:#8a4d00"><strong>Map setup needed</strong>Add MAPBOX_TOKEN to .env and restart the server.</div>`);
+}
+const gPlaces = L.layerGroup().addTo(map), gReports = L.layerGroup().addTo(map), gRoute = L.layerGroup().addTo(map);
+let me = L.circleMarker(S.c, { radius: 8, color: "#fff", weight: 3, fillColor: "#0a7d6e", fillOpacity: 1 }).addTo(map);
+map.on("click", (e) => { setCenter([e.latlng.lat, e.latlng.lng], false); });
+const sevColor = (n) => (n >= 4 ? "#cc3b2a" : n === 3 ? "#e8731a" : "#e8a317");
+const placeImages = {
+  food: [
+    "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=420&q=80",
+    "https://images.unsplash.com/photo-1552566626-52f8b828add9?auto=format&fit=crop&w=420&q=80",
+    "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=420&q=80",
+  ],
+  hotel: [
+    "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=420&q=80",
+    "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=420&q=80",
+    "https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&w=420&q=80",
+  ],
+  attraction: [
+    "https://images.unsplash.com/photo-1539650116574-75c0c6d73f6e?auto=format&fit=crop&w=420&q=80",
+    "https://images.unsplash.com/photo-1564507592333-c60657eea523?auto=format&fit=crop&w=420&q=80",
+    "https://images.unsplash.com/photo-1470770841072-f978cf4d019e?auto=format&fit=crop&w=420&q=80",
+  ],
+  heritage: [
+    "https://images.unsplash.com/photo-1598091383021-15ddea10925d?auto=format&fit=crop&w=420&q=80",
+    "https://images.unsplash.com/photo-1524492412937-b28074a5d7da?auto=format&fit=crop&w=420&q=80",
+    "https://images.unsplash.com/photo-1606298855672-3efb63017be8?auto=format&fit=crop&w=420&q=80",
+  ],
+};
+const placeImage = (p, i) => placeImages[p.type]?.[i % placeImages[p.type].length] || placeImages.attraction[i % 3];
+
+function setCenter(c, pan = true) {
+  S.c = c; me.setLatLng(c); if (pan) map.setView(c, 14);
+  loadWeather(); loadReports(); if ($("#explore").classList.contains("on")) loadPlaces();
+}
+function locate() {
+  if (!navigator.geolocation) { $("#wx").textContent = "Location isn't available. Tap the map to choose a spot."; setCenter(S.c); return; }
+  navigator.geolocation.getCurrentPosition((p) => setCenter([p.coords.latitude, p.coords.longitude]), () => { $("#wx").textContent = "Location blocked. Tap the map to choose a spot."; setCenter(S.c); }, { timeout: 8000 });
+}
+$("#locate").onclick = locate;
+
+// ---------- Weather ----------
+async function loadWeather() {
+  try {
+    const w = await api(`/weather?lat=${S.c[0]}&lng=${S.c[1]}`);
+    $("#wx").innerHTML = `<b>${Math.round(w.temp)}°C</b> (feels ${Math.round(w.feels_like)}°) · wind ${Math.round(w.wind_kmh)} km/h · rain chance ${w.rain_chance_max}%` +
+      w.alerts.map((a) => `<span class="alert-pill ${a.level}" title="${esc(a.text)}">${esc(a.text)}</span>`).join("");
+  } catch (e) { $("#wx").textContent = "Weather unavailable right now."; }
+}
+
+// ---------- Tabs ----------
+document.querySelectorAll("nav button").forEach((b) => b.onclick = () => {
+  document.querySelectorAll("nav button").forEach((x) => x.setAttribute("aria-selected", x === b));
+  document.querySelectorAll("section").forEach((s) => s.classList.toggle("on", s.id === b.dataset.tab));
+  if (b.dataset.tab === "explore") loadPlaces();
+});
+
+// ---------- Explore ----------
+document.querySelectorAll("#types .chip").forEach((c) => c.onclick = () => {
+  document.querySelectorAll("#types .chip").forEach((x) => x.setAttribute("aria-pressed", x === c));
+  S.type = c.dataset.type; loadPlaces();
+});
+async function loadPlaces() {
+  $("#places").textContent = "Loading places…"; $("#story").innerHTML = ""; gPlaces.clearLayers();
+  try {
+    const list = await api(`/explore?lat=${S.c[0]}&lng=${S.c[1]}&type=${S.type}&radius=2500`);
+    if (!list.length) { $("#places").textContent = "Nothing mapped within 2.5 km. Pan the map and tap a new spot."; return; }
+    $("#places").innerHTML = list.map((p, i) => `<div class="item place-card">
+      <img class="place-photo" src="${placeImage(p, i)}" alt="" loading="lazy">
+      <div class="place-copy"><h3>${esc(p.name)}</h3>
+      <span class="meta">${esc(p.sub.replace(/_/g, " "))} · ${(p.distance_m / 1000).toFixed(1)} km${p.hours ? " · " + esc(p.hours) : ""}</span>
+      <button class="btn ghost" data-i="${i}">Local story</button></div></div>`).join("");
+    list.forEach((p) => L.circleMarker([p.lat, p.lng], { radius: 6, color: "#14202b", weight: 1, fillColor: "#0a7d6e", fillOpacity: .9 }).bindPopup(`<b>${esc(p.name)}</b><br>${esc(p.sub)}`).addTo(gPlaces));
+    $("#places").querySelectorAll("button[data-i]").forEach((b) => b.onclick = async () => {
+      const p = list[b.dataset.i]; map.setView([p.lat, p.lng], 16); b.disabled = true;
+      $("#story").innerHTML = `<div class="note">Reading up on ${esc(p.name)}…</div>`;
+      try {
+        const s = await api(`/story?name=${encodeURIComponent(p.name)}&lat=${p.lat}&lng=${p.lng}`);
+        $("#story").innerHTML = `<div class="note"><b>${esc(p.name)}</b>\n${esc(s.text)}${s.sources.length ? `\n<span class="meta">Sources: ${s.sources.map((x) => esc(x.title)).join(", ")}</span>` : ""}</div>`;
+      } catch (e) { $("#story").innerHTML = `<div class="note warn">${esc(e.message)}</div>`; }
+      b.disabled = false;
+    });
+  } catch (e) { $("#places").innerHTML = `<span class="err">${esc(e.message)}</span>`; }
+}
+
+// ---------- Reports ----------
+async function loadReports() {
+  gReports.clearLayers();
+  try {
+    const rs = await api(`/reports?lat=${S.c[0]}&lng=${S.c[1]}&radius=3000`);
+    $("#reports").innerHTML = rs.length ? rs.map((r) => `<div class="item"><span class="sev" style="background:${sevColor(r.severity)}">${r.severity}</span> <b>${esc(r.category.replace(/_/g, " "))}</b>
+      <div>${esc(r.summary)}</div><div class="meta">${new Date(r.created_at * 1000).toLocaleString()} · ${r.confirmations} confirmed ·
+      <a href="#" data-c="${r.id}">I saw this too</a></div>${r.photo ? `<img src="${esc(r.photo)}" alt="Report photo" style="max-width:100%;border-radius:6px;margin-top:6px">` : ""}</div>`).join("") : "No reports here in the last 14 days.";
+    rs.forEach((r) => L.circleMarker([r.lat, r.lng], { radius: 6 + r.severity * 1.5, color: sevColor(r.severity), fillColor: sevColor(r.severity), fillOpacity: .35, weight: 2 }).bindPopup(`<b>${esc(r.category)}</b><br>${esc(r.summary)}`).addTo(gReports));
+    $("#reports").querySelectorAll("a[data-c]").forEach((a) => a.onclick = async (e) => { e.preventDefault(); try { await post(`/reports/${a.dataset.c}/confirm`, {}); loadReports(); } catch (x) { alert(x.message); } });
+  } catch (e) { $("#reports").textContent = e.message; }
+}
+const b64 = (blob) => new Promise((res) => { const f = new FileReader(); f.onload = () => res(f.result.split(",")[1]); f.readAsDataURL(blob); });
+async function shrink(file) {
+  const bmp = await createImageBitmap(file); const k = Math.min(1, 1024 / Math.max(bmp.width, bmp.height));
+  const cv = document.createElement("canvas"); cv.width = bmp.width * k; cv.height = bmp.height * k;
+  cv.getContext("2d").drawImage(bmp, 0, 0, cv.width, cv.height);
+  return new Promise((r) => cv.toBlob(r, "image/jpeg", .8));
+}
+async function toWav(blob) { // Gemini accepts WAV reliably, so convert the recording
+  const buf = await new AudioContext().decodeAudioData(await blob.arrayBuffer()); const ch = buf.getChannelData(0);
+  const ratio = buf.sampleRate / 16000, n = Math.floor(ch.length / ratio), pcm = new Int16Array(n);
+  for (let i = 0; i < n; i++) { const v = Math.max(-1, Math.min(1, ch[Math.floor(i * ratio)])); pcm[i] = v < 0 ? v * 32768 : v * 32767; }
+  const h = new DataView(new ArrayBuffer(44)), w = (o, s) => [...s].forEach((c, i) => h.setUint8(o + i, c.charCodeAt(0)));
+  w(0, "RIFF"); h.setUint32(4, 36 + n * 2, true); w(8, "WAVEfmt "); h.setUint32(16, 16, true); h.setUint16(20, 1, true); h.setUint16(22, 1, true);
+  h.setUint32(24, 16000, true); h.setUint32(28, 32000, true); h.setUint16(32, 2, true); h.setUint16(34, 16, true); w(36, "data"); h.setUint32(40, n * 2, true);
+  return new Blob([h, pcm], { type: "audio/wav" });
+}
+let mr, chunks = [];
+$("#rec").onclick = async () => {
+  if (mr && mr.state === "recording") { mr.stop(); return; }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mr = new MediaRecorder(stream); chunks = [];
+    mr.ondataavailable = (e) => chunks.push(e.data);
+    mr.onstop = async () => {
+      stream.getTracks().forEach((t) => t.stop());
+      const wav = await toWav(new Blob(chunks)); S.audio = { data: await b64(wav), mime: "audio/wav" };
+      $("#rec").textContent = "Voice note saved. Record again";
+    };
+    mr.start(); $("#rec").textContent = "Stop recording";
+    setTimeout(() => mr.state === "recording" && mr.stop(), 30000);
+  } catch { $("#rerr").textContent = "Microphone access is blocked. Allow it in your browser settings."; }
+};
+$("#rsend").onclick = async () => {
+  $("#rerr").textContent = ""; $("#rresult").innerHTML = ""; const btn = $("#rsend"); busy(btn, true); btn.textContent = "Analysing…";
+  try {
+    const body = { lat: S.c[0], lng: S.c[1], text: $("#rtext").value };
+    const f = $("#rphoto").files[0];
+    if (f) { body.imageBase64 = await b64(await shrink(f)); body.imageMime = "image/jpeg"; }
+    if (S.audio) { body.audioBase64 = S.audio.data; body.audioMime = S.audio.mime; }
+    const r = await post("/reports", body);
+    $("#rresult").innerHTML = `<div class="note"><b>Published as ${esc(r.category.replace(/_/g, " "))}, severity ${r.severity}/5</b>\n${esc(r.summary)}\n<span class="meta">Credibility ${Math.round(r.credibility * 100)}%${r.ai_used ? "" : " · AI was offline, so this used a basic fallback"}</span></div>`;
+    $("#rtext").value = ""; $("#rphoto").value = ""; S.audio = null; $("#rec").textContent = "Record voice note"; loadReports();
+  } catch (e) { $("#rerr").textContent = e.message; }
+  busy(btn, false); btn.textContent = "Send report";
+};
+
+// ---------- Compare ----------
+const bar = (l, v, c) => `<div class="bar"><span>${l}</span><i style="--w:${v * 20}%;--c:${c}"></i><b>${v}</b></div>`;
+$("#cgo").onclick = async () => {
+  const btn = $("#cgo"); busy(btn, true); $("#cout").innerHTML = `<p class="meta">Scoring places…</p>`;
+  try {
+    const r = await api(`/compare?lat=${S.c[0]}&lng=${S.c[1]}&type=${$("#ctype").value}&radius=2500`);
+    $("#cout").innerHTML = (r.explanation ? `<div class="note">${esc(r.explanation)}</div>` : "") +
+      r.places.map((p, i) => `<div class="item place-card"><img class="place-photo" src="${placeImage(p, i)}" alt="" loading="lazy"><div class="place-copy"><h3>${i + 1}. ${esc(p.name)} <span class="meta">${p.overall}/5</span></h3>
+        <div class="meta">${(p.distance_m / 1000).toFixed(1)} km · ${p.reviews} review${p.reviews === 1 ? "" : "s"} · ${p.incidents_nearby} incident${p.incidents_nearby === 1 ? "" : "s"} within 300 m</div>
+        ${bar("Safety", p.safety, "#0a7d6e")}${bar("Cleanliness", p.cleanliness, "#3a7ca5")}${bar("Affordability", p.affordability, "#e8a317")}${bar("Accessible", p.accessibility, "#6a5acd")}
+        <button class="btn ghost" data-k="${i}">Rate this place</button></div></div>`).join("");
+    $("#cout").querySelectorAll("button[data-k]").forEach((b) => b.onclick = () => rate(r.places[b.dataset.k]));
+  } catch (e) { $("#cout").innerHTML = `<span class="err">${esc(e.message)}</span>`; }
+  busy(btn, false);
+};
+async function rate(p) {
+  const v = (k) => prompt(`${p.name}: ${k} (1 = poor, 5 = excellent)`, "4"); if (!S.token) return openAuth();
+  const safety = v("Safety"); if (safety === null) return; const cleanliness = v("Cleanliness"), affordability = v("Affordability"), accessibility = v("Accessibility");
+  try { await post("/reviews", { place_key: p.key, place_name: p.name, lat: p.lat, lng: p.lng, safety, cleanliness, affordability, accessibility }); alert("Thanks. Your rating is saved."); $("#cgo").click(); }
+  catch (e) { alert(e.message); }
+}
+
+// ---------- Route ----------
+$("#rgo").onclick = async () => {
+  const btn = $("#rgo"); $("#routeerr").textContent = ""; $("#routeout").innerHTML = ""; gRoute.clearLayers(); busy(btn, true);
+  try {
+    const g = await api(`/geocode?q=${encodeURIComponent($("#dest").value)}&lat=${S.c[0]}&lng=${S.c[1]}`);
+    if (!g.length) throw new Error("Couldn't find that place. Try a landmark or area name.");
+    const to = g[0], r = await api(`/safe-route?from=${S.c}&to=${to.lat},${to.lng}&mode=${$("#mode").value}`);
+    const style = { safest: { color: "#0a7d6e", weight: 7 }, fastest: { color: "#56645c", weight: 4, dashArray: "6 8" }, alternative: { color: "#8aa0b5", weight: 4 } };
+    r.routes.forEach((x) => L.polyline(x.coords, style[x.label]).addTo(gRoute));
+    L.marker([to.lat, to.lng]).addTo(gRoute); map.fitBounds(L.polyline(r.routes.flatMap((x) => x.coords)).getBounds(), { padding: [30, 30] });
+    $("#routeout").innerHTML = (r.advice ? `<div class="note">${esc(r.advice)}</div>` : "") + r.routes.map((x) =>
+      `<div class="item"><h3>${x.label === "safest" ? "Safest" : x.label === "fastest" ? "Fastest" : "Alternative"} route</h3>
+       <div class="meta">${(x.distance_m / 1000).toFixed(1)} km · ${Math.round(x.duration_s / 60)} min · risk ${x.risk} · ${x.hits.length} reported hazard${x.hits.length === 1 ? "" : "s"} nearby</div></div>`).join("");
+  } catch (e) { $("#routeerr").textContent = e.message; }
+  busy(btn, false);
+};
+
+// ---------- Assistant ----------
+const hist = [];
+async function ask() {
+  const q = $("#q").value.trim(); if (!q) return; $("#q").value = "";
+  const add = (c, t) => { const d = document.createElement("div"); d.className = "msg " + c; d.textContent = t; $("#chatlog").append(d); d.scrollIntoView(); return d; };
+  add("u", q); const w = add("m", "Thinking…"); busy($("#qgo"), true);
+  try { const r = await post("/chat", { message: q, lat: S.c[0], lng: S.c[1], history: hist }); w.textContent = r.reply; hist.push({ role: "user", text: q }, { role: "model", text: r.reply }); }
+  catch (e) { w.textContent = e.message; }
+  busy($("#qgo"), false);
+}
+$("#qgo").onclick = ask; $("#q").onkeydown = (e) => e.key === "Enter" && ask();
+
+// ---------- Auth ----------
+let signup = false;
+function openAuth() { if (!$("#authd").open) $("#authd").showModal(); }
+function paintAuth() { $("#authbtn").textContent = S.user ? `${S.user.name} · Log out` : "Log in"; }
+function mode(s) { signup = s; $("#namewrap").hidden = !s; $("#authtitle").textContent = s ? "Create account" : "Log in"; $("#asubmit").textContent = s ? "Create account" : "Log in"; $("#aswitch").textContent = s ? "I have an account" : "Create account"; $("#apass").autocomplete = s ? "new-password" : "current-password"; }
+$("#aswitch").onclick = () => mode(!signup); $("#aclose").onclick = () => $("#authd").close();
+$("#authbtn").onclick = () => { if (S.user) { S.token = null; S.user = null; localStorage.removeItem("cp_token"); localStorage.removeItem("cp_user"); paintAuth(); } else openAuth(); };
+$("#authform").onsubmit = async (e) => {
+  e.preventDefault(); $("#aerr").textContent = "";
+  try {
+    const r = await post(signup ? "/auth/register" : "/auth/login", { name: $("#aname").value, email: $("#aemail").value, password: $("#apass").value });
+    S.token = r.token; S.user = r.user; localStorage.setItem("cp_token", r.token); localStorage.setItem("cp_user", JSON.stringify(r.user)); paintAuth(); $("#authd").close();
+  } catch (x) { $("#aerr").textContent = x.message; }
+};
+paintAuth(); locate();
+</script>
+</body>
+</html>
